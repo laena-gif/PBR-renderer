@@ -5,7 +5,7 @@
 ### Features
 
 - Classical Deferred Renderer
-- Physically Based shading, Disney model ( (Burley + GGX)
+- Physically Based shading, Disney model (Burley + GGX)
 - Physically Based shading
 - Image Based Lighting
 - BRDF Disney model ( (Burley + GGX)
