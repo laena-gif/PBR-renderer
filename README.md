@@ -5,10 +5,9 @@
 ### Features
 
 - Classical Deferred Renderer
-- Physically Based shading, Disney model (Burley + GGX)
 - Physically Based shading
 - Image Based Lighting
-- BRDF Disney model ( (Burley + GGX)
+- BRDF Disney model (Burley + GGX)
 - Tangent space normal mapping
 - Reinhard tone mapping
 - Directional & point light sources
