@@ -25,6 +25,7 @@ class ShaderCompiler:
 		pass
 	
 	def generate_ninja(self):
+		os.makedirs(f"{INTERMEDIATE_DIR}", exist_ok=True)
 		winsdk_helper = WinSDKHelper()
 		ninja = ninja_syntax.Writer(open(self.ninja_filename, "w+"))
 		ninja.rule("dxc", f"\"{winsdk_helper.dxc_path}\" $in -Fh $out -Od -Zi -Qembed_debug -all_resources_bound -H -T $target -Vn $header $defines")

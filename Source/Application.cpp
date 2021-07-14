@@ -45,7 +45,6 @@ void Application::Run()
 			{
 				mIsWorking = false;
 				std::quick_exit(0); // fuck that shit
-				break;
 			}
 
 			DispatchMessage(&msg);
@@ -104,7 +103,7 @@ void Application::Render()
 		uint32_t currentTexture = 0;
 		for (RenderMesh& mesh : mRenderMeshes)
 		{
-			mCommandList->SetGraphicsRoot32BitConstants(0, sizeof(mPerFrame) / 4, &mPerFrame, 0);
+			mCommandList->SetGraphicsRootConstantBufferView(0, mMemoryManager.AllocateBuffer(mPerFrame));
 			CD3DX12_GPU_DESCRIPTOR_HANDLE textureHandle{ mSRVHeap->GetGPUDescriptorHandleForHeapStart(), (INT)(kTextureSRVsOffset + currentTexture), mSRVDescriptorSize };
 			mCommandList->SetGraphicsRootDescriptorTable(1, textureHandle);
 			mCommandList->IASetVertexBuffers(0, 1, &mesh.mVertexBufferView);
@@ -145,11 +144,11 @@ void Application::Render()
 		ID3D12DescriptorHeap* descriptorHeaps[1] = { mSRVHeap.Get() };
 		mCommandList->SetDescriptorHeaps(1, descriptorHeaps);
 		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
+		mCommandList->SetGraphicsRootConstantBufferView(0, mMemoryManager.AllocateBuffer(mPerFrame));
 		uint32_t currentTexture = 0;
 		for (RenderMesh& mesh : mRenderMeshes)
 		{
-				mCommandList->SetGraphicsRoot32BitConstants(0, sizeof(mPerFrame) / 4, &mPerFrame, 0);
+
 				CD3DX12_GPU_DESCRIPTOR_HANDLE textureHandle{ mSRVHeap->GetGPUDescriptorHandleForHeapStart(), (INT)(kTextureSRVsOffset + (currentTexture * 3)), mSRVDescriptorSize };
 				mCommandList->SetGraphicsRootDescriptorTable(1, textureHandle);
 				mCommandList->IASetVertexBuffers(0, 1, &mesh.mVertexBufferView);
@@ -381,7 +380,7 @@ void Application::Render()
 	{
 		mCommandList->OMSetRenderTargets(1, &mRTVs[frameIndex], TRUE, &mDSVs[frameIndex]);
 		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-		mCommandList->SetGraphicsRoot32BitConstants(0, sizeof(mPerFrame) / 4, &mPerFrame, 0);
+		mCommandList->SetGraphicsRootConstantBufferView(0, mMemoryManager.AllocateBuffer(mPerFrame));
 		mDebugDrawer.DrawGrid();
 		mDebugDrawer.DrawAABB(mLightSource.GetLightPos(), float3(0.2, 0.2, 0.2), float4(1.0, 0.5, 0.0, 1.0));
 		mDebugDrawer.Execute(mCommandList.Get());
@@ -394,8 +393,9 @@ void Application::Render()
 
 	mQueue->ExecuteCommandLists((UINT)std::size(commandLists), commandLists);
 	mQueue->Signal(mFence.Get(), ++mFenceSignaledValue);
+	mMemoryManager.OnNewFrame();
 	mSwapChain->Present(0, 0);
-
+	
 	//mCurrFrame = (mFence->GetCompletedValue())%16;
 	mCurrFrame++;
 
@@ -740,6 +740,7 @@ void Application::InitD3D12()
 
 	mDebugDrawer.Initialize(mDevice.Get(), mRootSignature.Get());
 	mLightDrawer.Initialize(mDevice.Get(), mProxyLightRootSignature.Get());
+	mMemoryManager.Init(mDevice.Get(), 4 * 1024 * 1024, 2);
 }
 
 void Application::InitPipelineState()
@@ -752,17 +753,16 @@ void Application::InitPipelineState()
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 	};
-
+	
 	D3D12_DESCRIPTOR_RANGE descriptorRangeTextureSRV{};
 	descriptorRangeTextureSRV.BaseShaderRegister = 0;
 	descriptorRangeTextureSRV.NumDescriptors = 3;
 	descriptorRangeTextureSRV.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 
 	D3D12_ROOT_PARAMETER rootParameters[2];
-	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	rootParameters[0].Constants.Num32BitValues = sizeof(PerFrameCB) / 4;
-	rootParameters[0].Constants.ShaderRegister = 0;
-	rootParameters[0].Constants.RegisterSpace = 0;
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[0].Descriptor.ShaderRegister = 0;
+	rootParameters[0].Descriptor.RegisterSpace = 0;;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -1379,11 +1379,11 @@ void Application::InitTextures()
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(uploadHeap.GetAddressOf()));
-
+	
 		mAllocator->Reset();
 		mCommandList->Reset(mAllocator.Get(), nullptr);
-		UpdateSubresources(mCommandList.Get(), tex, uploadHeap.Get(), 0, 0, static_cast<UINT>(subresources.size()), subresources.data());
-		mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(tex, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+		UpdateSubresources(mCommandList.Get(), tex, uploadHeap.Get(), 0, 0, static_cast<UINT>(subresources.size()), subresources.data()); //cpu copies data from memory to a subresource in non mapable memory
+		//mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(tex, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
 
 		mCommandList->Close();
 		mQueue->ExecuteCommandLists(1, CommandListCast(mCommandList.GetAddressOf()));

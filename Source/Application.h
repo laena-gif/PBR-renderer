@@ -6,6 +6,7 @@
 #include "ProxyLightDrawer.h"
 #include "LightSource.h"
 #include "PointLight.h"
+#include "Manager.h"
 #include "Shaders/TiledLightingCommon.hlsli"
 
 struct PerFrameCB
@@ -289,6 +290,8 @@ private:
 	bool mIsCameraDrag = false;
 	uint32_t mNumTexturesLoaded = 0;
 	uint32_t mCurrFrame = 0;
+
+	MemoryManager mMemoryManager;
 
 };
 
